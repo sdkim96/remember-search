@@ -1,0 +1,15 @@
+// .vscode/launch.json
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Debug ETL Main",
+        "type": "go",
+        "request": "launch",
+        "mode": "debug",
+        "program": "${workspaceFolder}/etl/cmd",  // main.go 경로
+        "env": {},
+        "args": []
+      }
+    ]
+  }

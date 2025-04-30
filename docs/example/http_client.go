@@ -44,7 +44,7 @@ func searchWeb(url string, client ...*http.Client) {
 	channels <- &SearchWebResponse{body: read, status: httpResp.StatusCode}
 }
 
-func main() {
+func searching() {
 
 	var sites *WebSites = &WebSites{
 		google: "https://www.google.com",
