@@ -17,32 +17,35 @@ func loadDotenv() error {
 }
 
 type config struct {
-	ProjectName   string
-	ProjectAuthor string
+	projectName   string
+	projectAuthor string
 
-	DBName     string
-	DBUser     string
-	DBPassword string
-	DBHost     string
-	DBPort     string
-	DBDriver   string
+	dbName     string
+	dbUser     string
+	dbPassword string
+	dbHost     string
+	dbPort     string
+	dbDriver   string
 }
 
-func GetSettings() (*config, error) {
+func GetSettings() *config {
 	err := loadDotenv()
-	settings := &config{
-		ProjectName:   os.Getenv("PROJECT_NAME"),
-		ProjectAuthor: os.Getenv("PROJECT_AUTHOR"),
-		DBName:        os.Getenv("DB_NAME"),
-		DBUser:        os.Getenv("DB_USER"),
-		DBPassword:    os.Getenv("DB_PASSWORD"),
-		DBHost:        os.Getenv("DB_HOST"),
-		DBPort:        os.Getenv("DB_PORT"),
-		DBDriver:      os.Getenv("DB_DRIVER"),
+	if err != nil {
+		log.Fatal("Error loading .env file")
 	}
-	return settings, err
+	settings := &config{
+		projectName:   os.Getenv("PROJECT_NAME"),
+		projectAuthor: os.Getenv("PROJECT_AUTHOR"),
+		dbName:        os.Getenv("DB_NAME"),
+		dbUser:        os.Getenv("DB_USER"),
+		dbPassword:    os.Getenv("DB_PASSWORD"),
+		dbHost:        os.Getenv("DB_HOST"),
+		dbPort:        os.Getenv("DB_PORT"),
+		dbDriver:      os.Getenv("DB_DRIVER"),
+	}
+	return settings
 }
 
 func (c *config) GetPGURL() string {
-	return "postgres://" + c.DBUser + ":" + c.DBPassword + "@" + c.DBHost + ":" + c.DBPort + "/" + c.DBName
+	return "postgres://" + c.dbUser + ":" + c.dbPassword + "@" + c.dbHost + ":" + c.dbPort + "/" + c.dbName
 }

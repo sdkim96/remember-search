@@ -2,17 +2,42 @@ package internal
 
 import (
 	"database/sql"
+	"log"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
-func GetDB(connectionArgs string) (*sql.DB, error) {
-	db, err := sql.Open("postgres", connectionArgs)
+const pgxDrverName string = "pgx"
+
+// DBHandler is a struct that wraps the sql.DB object.
+//
+// It provides methods to interact with the database.
+type DBHandler struct {
+	db *sql.DB
+}
+
+// Initialize a new database handler.
+func InitDB(pgURL string) *DBHandler {
+	db, err := sql.Open(pgxDrverName, pgURL)
 	if err != nil {
-		return nil, err
+		log.Fatal("Error opening database: ", err)
 	}
-	defer db.Close()
-	err = db.Ping()
-	if err != nil {
-		return nil, err
+
+	return &DBHandler{
+		db: db,
 	}
-	return db, nil
+
+}
+
+// Checks the health of the database connection.
+func (handler *DBHandler) GetDBHealth() error {
+	return handler.db.Ping()
+}
+
+// Defer the closing of the database connection.
+// This should be called when the application is done using the database.
+func (handler *DBHandler) Close() {
+	if err := handler.db.Close(); err != nil {
+		log.Fatal("Error closing database: ", err)
+	}
 }

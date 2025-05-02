@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 
 	"github.com/sdkim96/remember-search/etl/internal"
 )
@@ -11,14 +10,18 @@ func main() {
 
 	fmt.Printf("Load Settings...\n")
 
-	settings, err := internal.GetSettings()
+	settings := internal.GetSettings()
+	dbHandler := internal.InitDB(settings.GetPGURL())
+	defer dbHandler.Close()
+
+	fmt.Printf("Check DB Health...\n")
+	err := dbHandler.GetDBHealth()
 	if err != nil {
-		fmt.Printf("Error loading settings: %v\n", err)
-		return
+		fmt.Printf("DB Health Check Failed: %v\n", err)
+	} else {
+		fmt.Printf("DB Health Check Passed\n")
 	}
 
-	log.Println("Project Name: ", settings.ProjectName)
-	db, err := internal.GetDB(settings.GetPGURL())
-	fmt.Printf("DB Connection: %v\n", db)
+	dbHandler.GetUsers()
 
 }
