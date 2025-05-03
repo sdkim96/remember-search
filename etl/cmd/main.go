@@ -1,7 +1,10 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/sdkim96/remember-search/etl/internal"
 )
@@ -22,6 +25,10 @@ func main() {
 		fmt.Printf("DB Health Check Passed\n")
 	}
 
-	dbHandler.GetUsers()
+	cause := errors.New("DB connection too slow")
+
+	ctx, cancel := context.WithDeadlineCause(context.Background(), time.Now().Add(1*time.Second), cause)
+	defer cancel()
+	dbHandler.GetUsersWithCtx(ctx)
 
 }

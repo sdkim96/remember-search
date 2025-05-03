@@ -20,6 +20,8 @@ type config struct {
 	projectName   string
 	projectAuthor string
 
+	ctxTimeout int
+
 	dbName     string
 	dbUser     string
 	dbPassword string
@@ -36,16 +38,23 @@ func GetSettings() *config {
 	settings := &config{
 		projectName:   os.Getenv("PROJECT_NAME"),
 		projectAuthor: os.Getenv("PROJECT_AUTHOR"),
-		dbName:        os.Getenv("DB_NAME"),
-		dbUser:        os.Getenv("DB_USER"),
-		dbPassword:    os.Getenv("DB_PASSWORD"),
-		dbHost:        os.Getenv("DB_HOST"),
-		dbPort:        os.Getenv("DB_PORT"),
-		dbDriver:      os.Getenv("DB_DRIVER"),
+
+		ctxTimeout: 10,
+
+		dbName:     os.Getenv("DB_NAME"),
+		dbUser:     os.Getenv("DB_USER"),
+		dbPassword: os.Getenv("DB_PASSWORD"),
+		dbHost:     os.Getenv("DB_HOST"),
+		dbPort:     os.Getenv("DB_PORT"),
+		dbDriver:   os.Getenv("DB_DRIVER"),
 	}
 	return settings
 }
 
 func (c *config) GetPGURL() string {
 	return "postgres://" + c.dbUser + ":" + c.dbPassword + "@" + c.dbHost + ":" + c.dbPort + "/" + c.dbName
+}
+
+func (c *config) GetCtxTimeout() int {
+	return c.ctxTimeout
 }
