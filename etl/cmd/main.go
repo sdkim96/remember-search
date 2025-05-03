@@ -1,34 +1,30 @@
 package main
 
 import (
-	"context"
-	"errors"
-	"fmt"
-	"time"
-
 	"github.com/sdkim96/remember-search/etl/internal"
+	"github.com/sdkim96/remember-search/etl/internal/db"
+	"github.com/sdkim96/remember-search/etl/pipeline"
 )
 
 func main() {
 
-	fmt.Printf("Load Settings...\n")
-
+	// 1. Initialize application settings
 	settings := internal.GetSettings()
-	dbHandler := internal.InitDB(settings.GetPGURL())
+	defaultAuthor := settings.GetAuthor()
+
+	// 2. Initialize database driver
+	dbHandler := db.InitDB(settings.GetPGURL())
 	defer dbHandler.Close()
 
-	fmt.Printf("Check DB Health...\n")
-	err := dbHandler.GetDBHealth()
-	if err != nil {
-		fmt.Printf("DB Health Check Failed: %v\n", err)
-	} else {
-		fmt.Printf("DB Health Check Passed\n")
+	// 3. Check and ping the database
+	dbHandler.GetDBHealth()
+
+	// 4. Run the ETL process
+	etlProcess := &pipeline.ETLPipeLine{
+		Invoker: defaultAuthor,
 	}
-
-	cause := errors.New("DB connection too slow")
-
-	ctx, cancel := context.WithDeadlineCause(context.Background(), time.Now().Add(1*time.Second), cause)
-	defer cancel()
-	dbHandler.GetUsersWithCtx(ctx)
-
+	err := pipeline.Execute(etlProcess, dbHandler)
+	if err != nil {
+		panic(err)
+	}
 }

@@ -1,13 +1,14 @@
-package internal
+package db
 
 import (
 	"context"
 	"log"
+	"time"
 )
 
 // Get remembers from the database.
-func (handler *DBHandler) GetUsers() {
-	rows, err := handler.db.Query("SELECT id, name, email FROM remeber")
+func (h *DBHandler) GetUsers() {
+	rows, err := h.conn.Query("SELECT id, name, email FROM remeber")
 	if err != nil {
 		log.Fatal("Error querying users: ", err)
 	}
@@ -24,8 +25,25 @@ func (handler *DBHandler) GetUsers() {
 	}
 }
 
-func (handler *DBHandler) GetUsersWithCtx(ctx context.Context) error {
-	rows, err := handler.db.QueryContext(ctx, "SELECT id, name, email FROM remeber")
+func (h *DBHandler) GetUsersWithCtx() error {
+
+	// 10 seconds timeout
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		time.Second*10,
+	)
+	defer cancel()
+
+	// Check if the context is done
+	select {
+	case <-ctx.Done():
+		log.Println("Context done")
+		return ctx.Err()
+	default:
+		log.Println("Context not done")
+	}
+
+	rows, err := h.conn.QueryContext(ctx, "SELECT id, name, email FROM remeber")
 	if err != nil {
 		return err
 	}
