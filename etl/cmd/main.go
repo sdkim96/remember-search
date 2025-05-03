@@ -20,11 +20,20 @@ func main() {
 	dbHandler.GetDBHealth()
 
 	// 4. Run the ETL process
-	etlProcess := &pipeline.ETLPipeLine{
+	//    - Early Part: Extract and Transform
+	earlyPipeline := &pipeline.EarlyPart{
 		Invoker: defaultAuthor,
 	}
-	err := pipeline.Execute(etlProcess, dbHandler)
+	err := pipeline.Execute(earlyPipeline, dbHandler)
 	if err != nil {
 		panic(err)
+	}
+	//    - Late Part: Load
+	latePipeline := &pipeline.LatePart{
+		Invoker: defaultAuthor,
+	}
+	lateError := pipeline.Execute(latePipeline, dbHandler)
+	if lateError != nil {
+		panic(lateError)
 	}
 }

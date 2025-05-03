@@ -21,7 +21,7 @@ func generateSchema[T any]() interface{} {
 	return schema
 }
 
-func Invoke[T any](
+func InvokeOpenAI[T any](
 	systemPrompt string,
 	userPrompt string,
 	client openai.Client,

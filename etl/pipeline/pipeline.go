@@ -9,11 +9,11 @@ import (
 	"github.com/sdkim96/remember-search/etl/internal/db"
 )
 
-type Pipeline interface {
+type ETLPipeline interface {
 	Run(h *db.DBHandler) error
 }
 
-func Execute(p Pipeline, h *db.DBHandler) error {
+func Execute(p ETLPipeline, h *db.DBHandler) error {
 	err := p.Run(h)
 	if err != nil {
 		return fmt.Errorf("failed to run pipeline: %w", err)
@@ -22,17 +22,31 @@ func Execute(p Pipeline, h *db.DBHandler) error {
 	return nil
 }
 
-// 1. ETLPipeLine
-
-type ETLPipeLine struct {
+// First Step of the ETL process
+//
+// This Early Partial ETL process is responsible for extracting data from the database,
+// transforming it using the OpenAI API, and loading it back into the database.
+type EarlyPart struct {
 	Invoker string
 }
 
-func (p *ETLPipeLine) Run(h *db.DBHandler) error {
+// Second Step of the ETL process
+//
+// This Late Partial ETL process is responsible for loading the transformed data back into the ElasticSearch.
+type LatePart struct {
+	Invoker string
+}
+
+func (p *EarlyPart) Run(h *db.DBHandler) error {
+
+	return nil
+}
+
+func (p *LatePart) Run(h *db.DBHandler) error {
 	openaiClient := openai.NewClient()
 	wg := &sync.WaitGroup{}
 
-	fmt.Println("Running pipeline...")
+	fmt.Println("Running Early Part of Pipeline, Invoker: %s...", p.Invoker)
 
 	offices, err := h.GetOffices(2)
 	if err != nil {
@@ -58,7 +72,7 @@ func (p *ETLPipeLine) Run(h *db.DBHandler) error {
 
 			userPrompt := "회사에 대해 요약과 키워드를 정리해주세요."
 
-			resp, err := ai.Invoke[db.CompanyInfoDTO](systemPrompt, userPrompt, openaiClient)
+			resp, err := ai.InvokeOpenAI[db.CompanyInfoDTO](systemPrompt, userPrompt, openaiClient)
 			if err != nil {
 				fmt.Printf("Error invoking LLM: %v\n", err)
 				return
