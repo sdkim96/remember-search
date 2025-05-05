@@ -11,6 +11,7 @@ func main() {
 	// 1. Initialize application settings
 	settings := internal.GetSettings()
 	defaultAuthor := settings.GetAuthor()
+	openAIAPIMaxQuotas := settings.GetOpenAIAPIMaxQuotas()
 
 	// 2. Initialize database driver
 	dbHandler := db.InitDB(settings.GetPGURL())
@@ -30,7 +31,8 @@ func main() {
 	}
 	//    - Late Part: Load
 	latePipeline := &pipeline.LatePart{
-		Invoker: defaultAuthor,
+		Invoker:            defaultAuthor,
+		OpenAIAPIMaxQuotas: openAIAPIMaxQuotas,
 	}
 	lateError := pipeline.Execute(latePipeline, dbHandler)
 	if lateError != nil {

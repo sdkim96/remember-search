@@ -3,6 +3,7 @@ package internal
 import (
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/joho/godotenv"
 )
@@ -25,6 +26,8 @@ type config struct {
 	dbPassword string
 	dbHost     string
 	dbPort     string
+
+	openAIAPIMaxQuotas string
 }
 
 func GetSettings() *config {
@@ -41,6 +44,8 @@ func GetSettings() *config {
 		dbPassword: os.Getenv("DB_PASSWORD"),
 		dbHost:     os.Getenv("DB_HOST"),
 		dbPort:     os.Getenv("DB_PORT"),
+
+		openAIAPIMaxQuotas: os.Getenv("OPENAI_API_MAX_QUOTAS"),
 	}
 	return settings
 }
@@ -51,4 +56,12 @@ func (c *config) GetPGURL() string {
 
 func (c *config) GetAuthor() string {
 	return c.projectAuthor
+}
+
+func (c *config) GetOpenAIAPIMaxQuotas() int {
+	quotas, err := strconv.Atoi(c.openAIAPIMaxQuotas)
+	if err != nil {
+		log.Fatalf("Error converting OPENAI_API_MAX_QUOTAS to int: %v", err)
+	}
+	return quotas
 }

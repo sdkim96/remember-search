@@ -34,7 +34,8 @@ type EarlyPart struct {
 //
 // This Late Partial ETL process is responsible for loading the transformed data back into the ElasticSearch.
 type LatePart struct {
-	Invoker string
+	Invoker            string
+	OpenAIAPIMaxQuotas int
 }
 
 func (p *EarlyPart) Run(h *db.DBHandler) error {
@@ -54,11 +55,15 @@ func (p *LatePart) Run(h *db.DBHandler) error {
 	}
 	fmt.Printf("Got %d offices\n", len(offices))
 
+	sem := make(chan struct{}, p.OpenAIAPIMaxQuotas)
+
 	for _, office := range offices {
 		wg.Add(1)
+		sem <- struct{}{} // Acquire a token
 
 		go func(o *db.OfficeDescriptionModel) {
 			defer wg.Done()
+			defer func() { <-sem }()
 			fmt.Printf("Processing office: %s\n", o.Title)
 			// Invoke LLM
 			officeInfo := o.GetDescription()
@@ -78,6 +83,7 @@ func (p *LatePart) Run(h *db.DBHandler) error {
 				return
 			}
 			fmt.Printf("LLM Response: %s\n", resp.CompanySummary)
+
 		}(office)
 
 	}
