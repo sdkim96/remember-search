@@ -2,10 +2,14 @@ package pipeline
 
 import (
 	"fmt"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/openai/openai-go"
+
 	"github.com/sdkim96/remember-search/etl/ai"
+	"github.com/sdkim96/remember-search/etl/elastic"
 	"github.com/sdkim96/remember-search/etl/internal/db"
 )
 
@@ -36,6 +40,8 @@ type EarlyPart struct {
 type LatePart struct {
 	Invoker            string
 	OpenAIAPIMaxQuotas int
+	ElasticHost        string
+	ElasticAPIKey      string
 }
 
 func (p *EarlyPart) Run(h *db.DBHandler) error {
@@ -45,27 +51,46 @@ func (p *EarlyPart) Run(h *db.DBHandler) error {
 
 func (p *LatePart) Run(h *db.DBHandler) error {
 	openaiClient := openai.NewClient()
-	wg := &sync.WaitGroup{}
-
-	fmt.Println("Running Early Part of Pipeline, Invoker: %s...", p.Invoker)
-
-	offices, err := h.GetOffices(2)
+	es, elErr := elastic.NewElasticClient(p.ElasticHost, p.ElasticAPIKey)
+	if elErr != nil {
+		return fmt.Errorf("failed to create elasticsearch client: %w", elErr)
+	}
+	res, err := es.Info()
 	if err != nil {
-		return fmt.Errorf("failed to get offices: %w\n", err)
+		return fmt.Errorf("failed to get elasticsearch info: %w", err)
+	}
+	defer res.Body.Close()
+	fmt.Printf("Elasticsearch Info: %s\n", res.String())
+
+	offices, err := h.GetOffices(10)
+	if err != nil {
+		return fmt.Errorf("failed to get offices: %w", err)
 	}
 	fmt.Printf("Got %d offices\n", len(offices))
 
+	wg := &sync.WaitGroup{}
+	companyAnalysisDTOs := make([]elastic.CompanyAnalysisDTO, 0)
+	dtoChan := make(chan *elastic.CompanyAnalysisDTO, len(offices))
+
+	// Limit the number of concurrent requests to OpenAI API
 	sem := make(chan struct{}, p.OpenAIAPIMaxQuotas)
 
+	// 1. Iterate over the offices
 	for _, office := range offices {
 		wg.Add(1)
-		sem <- struct{}{} // Acquire a token
+		// Acquire a token from the semaphore
+		sem <- struct{}{}
 
 		go func(o *db.OfficeDescriptionModel) {
-			defer wg.Done()
-			defer func() { <-sem }()
+
+			// Release the token when the goroutine completes
+			// This ensures that the semaphore is released even if an error occurs Because of the `defer`
+			defer func() {
+				<-sem
+				wg.Done()
+			}()
 			fmt.Printf("Processing office: %s\n", o.Title)
-			// Invoke LLM
+
 			officeInfo := o.GetDescription()
 			systemPrompt := fmt.Sprintf(`
 ## 역할
@@ -82,13 +107,35 @@ func (p *LatePart) Run(h *db.DBHandler) error {
 				fmt.Printf("Error invoking LLM: %v\n", err)
 				return
 			}
-			fmt.Printf("LLM Response: %s\n", resp.CompanySummary)
+
+			vector, err := ai.GetEmbedding(resp.CompanySummary, openaiClient)
+			if err != nil {
+				fmt.Printf("Error getting embedding: %v\n", err)
+				return
+			}
+			summaryLogging := strings.Split(resp.CompanySummary, "")
+			fmt.Printf("LLM Response: %s...\n", summaryLogging[:20])
+			dtoChan <- &elastic.CompanyAnalysisDTO{
+				Title:     o.Title,
+				Content:   officeInfo,
+				Summary:   resp.CompanySummary,
+				Vector:    vector,
+				Tags:      resp.CompanyKeywords,
+				Timestamp: time.Now(),
+			}
 
 		}(office)
 
 	}
-	wg.Wait()
-	fmt.Println("All offices processed.")
 
+	go func() {
+		wg.Wait()
+		close(dtoChan)
+	}()
+
+	for dto := range dtoChan {
+		companyAnalysisDTOs = append(companyAnalysisDTOs, *dto)
+	}
+	fmt.Println("Inserting into Es... %d\n", len(companyAnalysisDTOs))
 	return nil
 }

@@ -9,6 +9,32 @@ import (
 	"github.com/openai/openai-go"
 )
 
+func GetEmbedding(
+	text string,
+	client openai.Client,
+) ([]float64, error) {
+	// OpenAI Embedding API
+	embeddingResp, err := client.Embeddings.New(
+		context.Background(),
+		openai.EmbeddingNewParams{
+			Input: openai.EmbeddingNewParamsInputUnion{
+				OfArrayOfStrings: []string{text},
+			},
+			Model: openai.EmbeddingModelTextEmbeddingAda002,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("openai request error: %w", err)
+	}
+	// Embedding 결과 꺼내기
+	embedding := embeddingResp.Data[0].Embedding
+	// OpenAI Embedding API는 1536차원 벡터를 반환합니다.
+	if len(embedding) != 1536 {
+		return nil, fmt.Errorf("embedding length is not 1536: %d", len(embedding))
+	}
+	return embedding, nil
+}
+
 func generateSchema[T any]() interface{} {
 	// Structured Outputs uses a subset of JSON schema
 	// These flags are necessary to comply with the subset

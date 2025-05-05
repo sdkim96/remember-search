@@ -19,4 +19,7 @@ Below is tech stacks used in ETL pipeline.
 ```sh
 cd remember-search/etl
 go mod init github.com/sdkim96/remember-search/etl
+
+cd etl
+GOENV=.env go run cmd/main.go
 ```

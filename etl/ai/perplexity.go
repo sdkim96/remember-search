@@ -1,3 +1,3 @@
 package ai
 
-func InvokePerplexity()
+func InvokePerplexity() {}

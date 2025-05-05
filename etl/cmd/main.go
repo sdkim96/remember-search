@@ -12,6 +12,8 @@ func main() {
 	settings := internal.GetSettings()
 	defaultAuthor := settings.GetAuthor()
 	openAIAPIMaxQuotas := settings.GetOpenAIAPIMaxQuotas()
+	elasticHost := settings.GetElasticHost()
+	elasticAPIKey := settings.GetElasticAPIKey()
 
 	// 2. Initialize database driver
 	dbHandler := db.InitDB(settings.GetPGURL())
@@ -33,6 +35,8 @@ func main() {
 	latePipeline := &pipeline.LatePart{
 		Invoker:            defaultAuthor,
 		OpenAIAPIMaxQuotas: openAIAPIMaxQuotas,
+		ElasticHost:        elasticHost,
+		ElasticAPIKey:      elasticAPIKey,
 	}
 	lateError := pipeline.Execute(latePipeline, dbHandler)
 	if lateError != nil {

@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -9,12 +10,19 @@ import (
 )
 
 func loadDotenv() error {
+	files, readErr := os.ReadDir("../")
+	for f := range files {
+		fmt.Printf("%s\n", files[f].Name())
+	}
+	if readErr != nil {
+		log.Fatal("Error reading directory")
+	}
 
-	err := godotenv.Load("../.env")
-	if err != nil {
+	loadErr := godotenv.Load("../.env")
+	if loadErr != nil {
 		log.Fatal("Error loading .env file")
 	}
-	return err
+	return loadErr
 }
 
 type config struct {
@@ -27,6 +35,7 @@ type config struct {
 	dbHost     string
 	dbPort     string
 
+	openAIAPIKey       string
 	openAIAPIMaxQuotas string
 }
 
@@ -45,6 +54,7 @@ func GetSettings() *config {
 		dbHost:     os.Getenv("DB_HOST"),
 		dbPort:     os.Getenv("DB_PORT"),
 
+		openAIAPIKey:       os.Getenv("OPENAI_API_KEY"),
 		openAIAPIMaxQuotas: os.Getenv("OPENAI_API_MAX_QUOTAS"),
 	}
 	return settings
@@ -64,4 +74,11 @@ func (c *config) GetOpenAIAPIMaxQuotas() int {
 		log.Fatalf("Error converting OPENAI_API_MAX_QUOTAS to int: %v", err)
 	}
 	return quotas
+}
+
+func (c *config) GetElasticHost() string {
+	return os.Getenv("ELASTIC_HOST")
+}
+func (c *config) GetElasticAPIKey() string {
+	return os.Getenv("ELASTIC_API_KEY")
 }
