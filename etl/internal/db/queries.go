@@ -2,13 +2,15 @@ package db
 
 import (
 	"context"
-	"log"
 	"time"
+
+	"github.com/sdkim96/remember-search/etl/elastic"
 )
 
 // get info of remeber
 const getOfficeDescriptionSQL string = `
 SELECT 
+	r.id,
 	o.id, 
 	o.name as title, 
 	o.address, 
@@ -17,6 +19,28 @@ FROM office o
 LEFT JOIN remeber r
 ON r.id = o.id
 WHERE o.description NOTNULL
+;
+`
+
+const insertESContentSQL string = `
+INSERT INTO elastic_index_meta (
+	remember_id,
+	index_name,
+	document_id,
+	status,
+	error_message,
+	created_at,
+	updated_at
+) VALUES (
+	$1, $2, $3, $4, $5, $6, $7
+
+)
+;
+INSERT INTO elastic_index_content (
+	document_id, title, summary, tags
+) VALUES (
+	$8, $9, $10, $11
+)
 ;
 `
 
@@ -36,7 +60,13 @@ func (h *DBHandler) GetOffices(limit ...int) ([]*OfficeDescriptionModel, error) 
 
 	for rows.Next() {
 		office := &OfficeDescriptionModel{}
-		err := rows.Scan(&office.ID, &office.Title, &office.Address, &office.Content)
+		err := rows.Scan(
+			&office.RemeberID,
+			&office.ID,
+			&office.Title,
+			&office.Address,
+			&office.Content,
+		)
 		if err != nil {
 			return offices, err
 		}
@@ -50,60 +80,34 @@ func (h *DBHandler) GetOffices(limit ...int) ([]*OfficeDescriptionModel, error) 
 	return offices, nil
 }
 
-// Get remembers from the database.
-func (h *DBHandler) GetUsers() {
-	rows, err := h.conn.Query("SELECT id, name, email FROM remeber")
-	if err != nil {
-		log.Fatal("Error querying users: ", err)
-	}
+func (h *DBHandler) InsertESContent(dto *elastic.CompanyAnalysisDTO, indexName string) error {
 
-	for rows.Next() {
-		var id int
-		var name string
-		var email string
-		err := rows.Scan(&id, &name, &email)
-		if err != nil {
-			log.Fatal("Error scanning user: ", err)
-		}
-		log.Printf("User: %d, %s, %s\n", id, name, email)
-	}
-}
-
-func (h *DBHandler) GetUsersWithCtx() error {
-
-	// 10 seconds timeout
-	ctx, cancel := context.WithTimeout(
+	h.conn.ExecContext(
 		context.Background(),
-		time.Second*10,
+		insertESContentSQL,
+		dto.RemeberID,
+		indexName,
+		dto.DocumentID,
 	)
-	defer cancel()
-
-	// Check if the context is done
-	select {
-	case <-ctx.Done():
-		log.Println("Context done")
-		return ctx.Err()
-	default:
-		log.Println("Context not done")
-	}
-
-	rows, err := h.conn.QueryContext(ctx, "SELECT id, name, email FROM remeber")
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var id int
-		var name, email string
-		if err := rows.Scan(&id, &name, &email); err != nil {
-			return err
-		}
-		log.Printf("User: %d, %s, %s\n", id, name, email)
-	}
-
-	if err := rows.Err(); err != nil {
-		return err
-	}
 	return nil
 }
+
+// INSERT INTO elastic_index_meta (
+// 	remember_id,
+// 	index_name,
+// 	document_id,
+// 	status,
+// 	error_message,
+// 	created_at,
+// 	updated_at
+// ) VALUES (
+// 	$1, $2, $3, $4, $5, $6, $7
+
+// )
+// ;
+// INSERT INTO elastic_index_content (
+// 	document_id, title, summary, tags
+// ) VALUES (
+// 	$8, $9, $10, $11
+// )
+// ;

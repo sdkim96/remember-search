@@ -3,10 +3,11 @@ package db
 import "fmt"
 
 type OfficeDescriptionModel struct {
-	ID      int    `json:"id"`
-	Title   string `json:"title"`
-	Address string `json:"address"`
-	Content string `json:"content"`
+	RemeberID int    `json:"remember_id"`
+	ID        int    `json:"id"`
+	Title     string `json:"title"`
+	Address   string `json:"address"`
+	Content   string `json:"content"`
 }
 
 func (o *OfficeDescriptionModel) GetDescription() string {

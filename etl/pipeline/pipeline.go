@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/openai/openai-go"
 
 	"github.com/sdkim96/remember-search/etl/ai"
@@ -62,7 +63,7 @@ func (p *LatePart) Run(h *db.DBHandler) error {
 	defer res.Body.Close()
 	fmt.Printf("Elasticsearch Info: %s\n", res.String())
 
-	offices, err := h.GetOffices(10)
+	offices, err := h.GetOffices(2)
 	if err != nil {
 		return fmt.Errorf("failed to get offices: %w", err)
 	}
@@ -71,11 +72,9 @@ func (p *LatePart) Run(h *db.DBHandler) error {
 	wg := &sync.WaitGroup{}
 	companyAnalysisDTOs := make([]elastic.CompanyAnalysisDTO, 0)
 	dtoChan := make(chan *elastic.CompanyAnalysisDTO, len(offices))
-
-	// Limit the number of concurrent requests to OpenAI API
 	sem := make(chan struct{}, p.OpenAIAPIMaxQuotas)
 
-	// 1. Iterate over the offices
+	// 1. Execute goroutines over the offices (OpenAI API)
 	for _, office := range offices {
 		wg.Add(1)
 		// Acquire a token from the semaphore
@@ -102,40 +101,56 @@ func (p *LatePart) Run(h *db.DBHandler) error {
 
 			userPrompt := "회사에 대해 요약과 키워드를 정리해주세요."
 
+			// Call the OpenAI API to get the summary and keywords
 			resp, err := ai.InvokeOpenAI[db.CompanyInfoDTO](systemPrompt, userPrompt, openaiClient)
 			if err != nil {
 				fmt.Printf("Error invoking LLM: %v\n", err)
 				return
 			}
 
+			// Get the embedding vector for the summary
 			vector, err := ai.GetEmbedding(resp.CompanySummary, openaiClient)
 			if err != nil {
 				fmt.Printf("Error getting embedding: %v\n", err)
 				return
 			}
-			summaryLogging := strings.Split(resp.CompanySummary, "")
-			fmt.Printf("LLM Response: %s...\n", summaryLogging[:20])
+			summaryIterator := strings.Split(resp.CompanySummary, "")
+			fmt.Printf("LLM Response: %s...\n", summaryIterator[:20])
+
+			// Send the pointer to the channel
 			dtoChan <- &elastic.CompanyAnalysisDTO{
-				Title:     o.Title,
-				Content:   officeInfo,
-				Summary:   resp.CompanySummary,
-				Vector:    vector,
-				Tags:      resp.CompanyKeywords,
-				Timestamp: time.Now(),
+				RemeberID:  o.RemeberID,
+				DocumentID: uuid.NewString(),
+				Title:      o.Title,
+				Content:    o.Content,
+				Summary:    resp.CompanySummary,
+				Vector:     vector,
+				Tags:       resp.CompanyKeywords,
+				Timestamp:  time.Now(),
 			}
 
 		}(office)
 
 	}
 
+	// Close the goroutine channel after all goroutines are done (asynchronously)
 	go func() {
 		wg.Wait()
 		close(dtoChan)
 	}()
 
+	// Recieve the results from the channel
 	for dto := range dtoChan {
 		companyAnalysisDTOs = append(companyAnalysisDTOs, *dto)
 	}
-	fmt.Println("Inserting into Es... %d\n", len(companyAnalysisDTOs))
+
+	// 2. Insert the results into DB and ES
+	fmt.Printf("Inserting into Es... %d\n", len(companyAnalysisDTOs))
+	if err := elastic.Bulk(es, "dev_company_analysis", &companyAnalysisDTOs); err != nil {
+		return fmt.Errorf("failed to bulk insert into elasticsearch: %w", err)
+	}
 	return nil
+
+	// 3. Insert the results into DB
+
 }
