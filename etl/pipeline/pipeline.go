@@ -149,8 +149,8 @@ func (p *LatePart) Run(h *db.DBHandler) error {
 	if err := elastic.Bulk(es, "dev_company_analysis", &companyAnalysisDTOs); err != nil {
 		return fmt.Errorf("failed to bulk insert into elasticsearch: %w", err)
 	}
-	return nil
 
 	// 3. Insert the results into DB
-
+	h.InsertESContent(&companyAnalysisDTOs, "dev_company_analysis")
+	return nil
 }

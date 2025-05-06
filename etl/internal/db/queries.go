@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"log"
 	"time"
 
 	"github.com/sdkim96/remember-search/etl/elastic"
@@ -23,24 +24,37 @@ WHERE o.description NOTNULL
 `
 
 const insertESContentSQL string = `
-INSERT INTO elastic_index_meta (
-	remember_id,
-	index_name,
-	document_id,
-	status,
-	error_message,
-	created_at,
-	updated_at
+INSERT INTO elastic_index_meta
+  ( remember_id
+  , index_name
+  , document_id
+  , status
+  , error_message
+  , created_at
+  , updated_at
+  , load_cnt
+  )
+VALUES
+  ( $1
+  , $2
+  , $3
+  , 'success'
+  , NULL
+  , now()
+  , now()
+  , $4
+  );
+INSERT INTO elastic_index_content (
+	document_id, summary, tags
 ) VALUES (
-	$1, $2, $3, $4, $5, $6, $7
-
+	$3, $5, $6
 )
 ;
-INSERT INTO elastic_index_content (
-	document_id, title, summary, tags
-) VALUES (
-	$8, $9, $10, $11
-)
+`
+
+const getMaxCntSQL string = `
+SELECT MAX(load_cnt) AS max_load_cnt
+FROM elastic_index_meta
 ;
 `
 
@@ -80,34 +94,45 @@ func (h *DBHandler) GetOffices(limit ...int) ([]*OfficeDescriptionModel, error) 
 	return offices, nil
 }
 
-func (h *DBHandler) InsertESContent(dto *elastic.CompanyAnalysisDTO, indexName string) error {
+func (h *DBHandler) InsertESContent(dtos *[]elastic.CompanyAnalysisDTO, indexName string) error {
 
-	h.conn.ExecContext(
-		context.Background(),
-		insertESContentSQL,
-		dto.RemeberID,
-		indexName,
-		dto.DocumentID,
+	var (
+		maxLoadCnt int
+		ctx        context.Context
 	)
+
+	ctx = context.Background()
+
+	row := h.conn.QueryRowContext(
+		ctx,
+		getMaxCntSQL,
+	)
+	err := row.Scan(&maxLoadCnt)
+	if err != nil {
+		log.Printf("Error getting max load count: %v", err)
+		maxLoadCnt = 999999999
+	}
+
+	maxLoadCnt++
+
+	stmt, err := h.conn.Prepare(insertESContentSQL)
+	if err != nil {
+		log.Printf("Error preparing statement: %v", err)
+	}
+	defer stmt.Close()
+
+	for _, dto := range *dtos {
+		if _, err := stmt.Exec(
+			dto.RemeberID,
+			indexName,
+			dto.DocumentID,
+			maxLoadCnt,
+			dto.Summary,
+			dto.Tags,
+		); err != nil {
+			log.Printf("Error executing statement: %v", err)
+		}
+	}
+
 	return nil
 }
-
-// INSERT INTO elastic_index_meta (
-// 	remember_id,
-// 	index_name,
-// 	document_id,
-// 	status,
-// 	error_message,
-// 	created_at,
-// 	updated_at
-// ) VALUES (
-// 	$1, $2, $3, $4, $5, $6, $7
-
-// )
-// ;
-// INSERT INTO elastic_index_content (
-// 	document_id, title, summary, tags
-// ) VALUES (
-// 	$8, $9, $10, $11
-// )
-// ;
